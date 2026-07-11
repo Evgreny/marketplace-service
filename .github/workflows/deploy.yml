@@ -1,0 +1,51 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]           # деплоим на каждый push в main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Convert owner to lowercase
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=ghcr.io/${OWNER_LOWER}/marketplace-service" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR              # авторизация в реестре образов по токену из секретов
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push image        # собрать образ и залить в реестр под двумя тегами
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest              
+
+      - name: Deploy to server            # зайти на сервер по SSH и перезапустить контейнер
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}      # host/user/ключ — всё из секретов, в коде их нет
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE
+          script: |                              # команды ниже выполняются НА сервере:
+            # залогиниться в реестр, чтобы стянуть приватный образ
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull $IMAGE:latest                          # стянуть свежий образ
+            docker rm -f marketplace-satisfaction 2>/dev/null || true    # снести старый контейнер, если был
+            docker run -d \
+              --name marketplace-satisfaction \
+              --restart unless-stopped \
+              -p 80:8000 \
+              $IMAGE:latest
+            docker logout ghcr.io
