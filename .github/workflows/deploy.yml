@@ -1,8 +1,12 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]           # деплоим на каждый push в main
+  workflow_run:
+    workflows: ["CI"]              # Название должно совпадать с name: CI в ci.yml
+    types:
+      - completed
+    branches:
+      - main           # деплоим на каждый push в main
 
 jobs:
   deploy:
@@ -13,24 +17,7 @@ jobs:
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "IMAGE=ghcr.io/${OWNER_LOWER}/marketplace-service" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v4
-
-      - name: Log in to GHCR              # авторизация в реестре образов по токену из секретов
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Build and push image        # собрать образ и залить в реестр под двумя тегами
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.IMAGE }}:${{ github.sha }}
-            ${{ env.IMAGE }}:latest              
-
+             
       - name: Deploy to server            # зайти на сервер по SSH и перезапустить контейнер
         uses: appleboy/ssh-action@v1.0.3
         with:
