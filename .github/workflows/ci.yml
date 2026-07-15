@@ -30,21 +30,21 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - name: Convert owner to lowercase
+      - name: Convert owner to lowercase        # Конвертируем имя пользователя в нижний регистр для docker
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE=ghcr.io/${OWNER_LOWER}/marketplace-service" >> $GITHUB_ENV
+          echo "IMAGE=ghcr.io/${OWNER_LOWER}/marketplace-service" >> $GITHUB_ENV    # Записываем имя в GITHUB_ENV
 
       - uses: actions/checkout@v4
       
-      - name: Login to GHCR
+      - name: Login to GHCR           # Логинимся в хранилище образов ghcr.io
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
       
-      - name: Build and push
+      - name: Build and push              # Создаем и пушим образ в ghcr.io
         uses: docker/build-push-action@v5
         with:
           context: .

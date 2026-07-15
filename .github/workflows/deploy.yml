@@ -12,7 +12,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Convert owner to lowercase
+      - name: Convert owner to lowercase  
         run: |
           OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "IMAGE=ghcr.io/${OWNER_LOWER}/marketplace-service" >> $GITHUB_ENV
@@ -35,4 +35,14 @@ jobs:
               --restart unless-stopped \
               -p 127.0.0.1:8000:8000 \
               $IMAGE:latest
-            docker logout ghcr.io
+
+            # Ждем 5 секунд после запуска нового контейнера и удаляем прошлый образ (важно если на сервере мало места)
+            sleep 5
+            if docker ps | grep -q marketplace-satisfaction; then
+              docker system prune -f        # Удаляем старые неиспользуемые образы
+            else
+              echo "Container failed to start"
+              exit 1
+            fi
+
+            docker logout ghcr.io  # Выходим из ghcr.io
